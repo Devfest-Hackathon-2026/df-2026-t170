@@ -9,48 +9,41 @@ on:
       - 'frontend/**'
       - '.github/workflows/deploy-frontend.yml'
 
+env:
+  REGION: asia-northeast1
+
 jobs:
-  deploy-frontend:
+  deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - name: Google auth
+        uses: google-github-actions/auth@v2
         with:
-          version: latest
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Next.js app
-        run: pnpm run build
-
-      - name: Determine Firebase Channel based on branch
-        id: branch-config
+      - name: Set envs by branch
+        id: vars
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "channel=live" >> $GITHUB_OUTPUT
+            echo "service_name=nextjs-frontend-prod" >> $GITHUB_OUTPUT
           else
-            echo "channel=preview" >> $GITHUB_OUTPUT
+            echo "service_name=nextjs-frontend-dev" >> $GITHUB_OUTPUT
           fi
 
-      - name: Deploy to Firebase hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Deploy to Cloud Run from Source
+        uses: google-github-actions/deploy-cloudrun@v2
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEVFEST2026_FRONTEND }}
-          channelId: ${{ steps.branch-config.outputs.channel }}
-          projectId: devfest2026-frontend
-          entryPoint: frontend
+          service: ${{ steps.vars.outputs.service_name }}
+          source: ./frontend
+          region: ${{ env.REGION }}
+          flags: '--allow-unauthenticated --port 8080'
