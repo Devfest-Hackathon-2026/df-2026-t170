@@ -55,9 +55,9 @@ jobs:
           service: ${{ steps.vars.outputs.service_name }}
           source: ./frontend
           region: ${{ env.REGION }}
-          build-env-vars: |
+          build_env_vars: |
             NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
-          env-vars: |
+          env_vars: |
             BACKEND_API_URL=${{ steps.backend.outputs.url }}
 
           flags: >-
