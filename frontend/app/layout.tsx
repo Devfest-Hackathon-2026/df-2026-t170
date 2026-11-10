@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "旅すごろく",
-    template: "%s | 旅すごろく",
+    default: "旅アプリ",
+    template: "%s | 旅アプリ",
   },
   description:
     "日本全国の市区町村をランダムに旅して、知らなかった魅力を発見しよう。",

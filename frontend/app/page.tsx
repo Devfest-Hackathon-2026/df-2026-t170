@@ -9,7 +9,7 @@ export default function StartPage() {
           🗾
         </span>
         <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          旅すごろく
+          旅アプリ
         </h1>
         <p className="text-lg text-zinc-600 dark:text-zinc-400 max-w-sm leading-relaxed">
           日本全国の市区町村をランダムに旅して、
