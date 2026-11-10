@@ -57,10 +57,12 @@ jobs:
 
       - name: Build image via Cloud Build with build-arg
         run: |
-          gcloud builds submit ./frontend \
+          BUILD_ID=$(gcloud builds submit ./frontend \
             --config=./frontend/cloudbuild.yaml \
             --substitutions="_NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }},_IMAGE=${{ steps.image.outputs.name }}" \
-            --suppress-logs
+            --async --format="value(id)")
+          echo "Build ID: ${BUILD_ID}"
+          gcloud builds wait "${BUILD_ID}"
 
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
