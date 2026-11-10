@@ -1,0 +1,75 @@
+name: Deploy frontend to Cloud Run
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+
+env:
+  REGION: asia-northeast1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Google auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set envs by branch
+        id: vars
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "service_name=nextjs-frontend-prod" >> $GITHUB_OUTPUT
+          else
+            echo "service_name=nextjs-frontend-dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set backend URL by branch
+        id: backend
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "url=${{ secrets.BACKEND_API_URL_PROD }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ secrets.BACKEND_API_URL_DEV }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set image name
+        id: image
+        run: |
+          PROJECT_ID=$(gcloud config get-value project)
+          echo "name=asia-northeast1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${{ steps.vars.outputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Build image via Cloud Build with build-arg
+        run: |
+          gcloud builds submit ./frontend \
+            --config=./frontend/cloudbuild.yaml \
+            --substitutions="_NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }},_IMAGE=${{ steps.image.outputs.name }}" \
+            --suppress-logs
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ steps.vars.outputs.service_name }}
+          image: ${{ steps.image.outputs.name }}
+          region: ${{ env.REGION }}
+          env_vars: |
+            BACKEND_API_URL=${{ steps.backend.outputs.url }}
+          flags: >-
+            --allow-unauthenticated
+            --port 8080

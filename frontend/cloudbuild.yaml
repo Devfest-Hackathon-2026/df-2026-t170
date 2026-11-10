@@ -1,0 +1,23 @@
+steps:
+  # NEXT_PUBLIC_ 変数はビルド時に埋め込まれるため build-arg で Dockerfile に渡す
+  # （Dockerfile の ENV が空文字を設定するため、.env.production では上書きされない）
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${_NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}'
+      - '-t'
+      - '${_IMAGE}'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_IMAGE}'
+
+images:
+  - '${_IMAGE}'
+
+substitutions:
+  _NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ''
+  _IMAGE: ''
