@@ -1,9 +1,21 @@
 /**
  * バックエンドAPIクライアント
- * NOTE: 現時点ではすべて空実装（モックデータを返す）。
- *       実際のバックエンドが用意されたら BASE_URL を設定して実実装に切り替える。
+ *
+ * 【認証について】
+ * バックエンド（Cloud Run）は --no-allow-unauthenticated で保護されている。
+ * フロントエンド（Cloud Run）からのリクエストには GCE メタデータサーバーから取得した
+ * OIDC Identity Token を Authorization: Bearer ヘッダーに付与する。
+ *
+ * 【環境変数】
+ * - BACKEND_API_URL : バックエンドの Cloud Run サービス URL（サーバーサイド専用・NEXT_PUBLIC_ 不要）
+ *                     未設定の場合はモックデータを返す（ローカル開発用フォールバック）
+ *
+ * 【呼び出し元】
+ * すべての関数は Server Components / Route Handlers から呼ぶこと。
+ * クライアントサイドから呼ぶと BACKEND_API_URL が undefined になりモックにフォールバックする。
  */
 
+import { fetchIdentityToken } from "./auth";
 import type {
   Municipality,
   MunicipalityDetail,
@@ -12,9 +24,9 @@ import type {
   GuideSection,
 } from "./types";
 
-// const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const BASE_URL = process.env.BACKEND_API_URL;
 
-// ---- モックデータ --------------------------------------------------------
+// ---- モックデータ（BACKEND_API_URL 未設定時のフォールバック） ----------------
 
 const MOCK_MUNICIPALITY: Municipality = {
   municipality_code: "131016",
@@ -67,18 +79,47 @@ const MOCK_GUIDE: GuideResponse = {
   generated_at: new Date().toISOString(),
 };
 
-// ---- API関数（空実装） ---------------------------------------------------
+// ---- 内部ユーティリティ ---------------------------------------------------
+
+/**
+ * Bearer トークン付きの共通 fetch ラッパー。
+ * BASE_URL が未設定の場合は null を返し、呼び出し元でモックにフォールバックする。
+ */
+async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response | null> {
+  if (!BASE_URL) return null;
+
+  // audience = バックエンドの Cloud Run サービス URL（トークンの検証に使用される）
+  const token = await fetchIdentityToken(BASE_URL);
+
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Content-Type", "application/json");
+
+  return fetch(`${BASE_URL}${path}`, { ...init, headers, cache: "no-store" });
+}
+
+/** レスポンスのエラーハンドリング共通処理 */
+async function handleResponse<T>(res: Response, label: string): Promise<T> {
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`[${label}] ${res.status} ${res.statusText}: ${body}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+// ---- API 関数 -------------------------------------------------------------
 
 /**
  * ランダムな市区町村を取得する
  * GET /municipalities/random
  */
 export async function getRandomMunicipality(): Promise<Municipality> {
-  // TODO: 実実装
-  // const res = await fetch(`${BASE_URL}/municipalities/random`);
-  // if (!res.ok) throw new Error("Failed to fetch random municipality");
-  // return res.json();
-  return Promise.resolve(MOCK_MUNICIPALITY);
+  const res = await apiFetch("/municipalities/random");
+  if (!res) return MOCK_MUNICIPALITY;
+  return handleResponse<Municipality>(res, "getRandomMunicipality");
 }
 
 /**
@@ -89,17 +130,12 @@ export async function getMunicipalityFromGeocode(
   latitude: number,
   longitude: number,
 ): Promise<Municipality> {
-  // TODO: 実実装
-  // const res = await fetch(`${BASE_URL}/municipalities/from-geocode`, {
-  //   method: "POST",
-  //   headers: { "Content-Type": "application/json" },
-  //   body: JSON.stringify({ latitude, longitude }),
-  // });
-  // if (!res.ok) throw new Error("Failed to fetch municipality from geocode");
-  // return res.json();
-  void latitude;
-  void longitude;
-  return Promise.resolve(MOCK_MUNICIPALITY);
+  const res = await apiFetch("/municipalities/from-geocode", {
+    method: "POST",
+    body: JSON.stringify({ latitude, longitude }),
+  });
+  if (!res) return MOCK_MUNICIPALITY;
+  return handleResponse<Municipality>(res, "getMunicipalityFromGeocode");
 }
 
 /**
@@ -109,12 +145,9 @@ export async function getMunicipalityFromGeocode(
 export async function getMunicipalityDetail(
   code: string,
 ): Promise<MunicipalityDetail> {
-  // TODO: 実実装
-  // const res = await fetch(`${BASE_URL}/municipalities/${code}`);
-  // if (!res.ok) throw new Error("Failed to fetch municipality detail");
-  // return res.json();
-  void code;
-  return Promise.resolve(MOCK_DETAIL);
+  const res = await apiFetch(`/municipalities/${code}`);
+  if (!res) return MOCK_DETAIL;
+  return handleResponse<MunicipalityDetail>(res, "getMunicipalityDetail");
 }
 
 /**
@@ -122,12 +155,9 @@ export async function getMunicipalityDetail(
  * GET /municipalities/{municipality_code}/map
  */
 export async function getMunicipalityMap(code: string): Promise<MapData> {
-  // TODO: 実実装
-  // const res = await fetch(`${BASE_URL}/municipalities/${code}/map`);
-  // if (!res.ok) throw new Error("Failed to fetch municipality map");
-  // return res.json();
-  void code;
-  return Promise.resolve(MOCK_MAP);
+  const res = await apiFetch(`/municipalities/${code}/map`);
+  if (!res) return MOCK_MAP;
+  return handleResponse<MapData>(res, "getMunicipalityMap");
 }
 
 /**
@@ -145,15 +175,10 @@ export async function getMunicipalityGuide(
     "heritage",
   ],
 ): Promise<GuideResponse> {
-  // TODO: 実実装
-  // const res = await fetch(`${BASE_URL}/municipalities/${code}/guide`, {
-  //   method: "POST",
-  //   headers: { "Content-Type": "application/json" },
-  //   body: JSON.stringify({ language: "ja", sections }),
-  // });
-  // if (!res.ok) throw new Error("Failed to fetch guide");
-  // return res.json();
-  void code;
-  void sections;
-  return Promise.resolve(MOCK_GUIDE);
+  const res = await apiFetch(`/municipalities/${code}/guide`, {
+    method: "POST",
+    body: JSON.stringify({ language: "ja", sections }),
+  });
+  if (!res) return MOCK_GUIDE;
+  return handleResponse<GuideResponse>(res, "getMunicipalityGuide");
 }

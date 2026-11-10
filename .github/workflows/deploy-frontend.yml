@@ -40,6 +40,15 @@ jobs:
             echo "service_name=nextjs-frontend-dev" >> $GITHUB_OUTPUT
           fi
 
+      - name: Set backend URL by branch
+        id: backend
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "url=${{ secrets.BACKEND_API_URL_PROD }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ secrets.BACKEND_API_URL_DEV }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy to Cloud Run from Source
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -47,9 +56,10 @@ jobs:
           source: ./frontend
           region: ${{ env.REGION }}
           # --set-build-env-vars でビルド時に NEXT_PUBLIC_ 変数を埋め込む
-          # --set-env-vars はランタイム環境変数（NEXT_PUBLIC_ はビルド時埋め込みだが念のため設定）
+          # --set-env-vars はランタイム環境変数として渡す
+          # BACKEND_API_URL はサーバーサイド専用のため NEXT_PUBLIC_ 不要
           flags: >-
             --allow-unauthenticated
             --port 8080
             --set-build-env-vars NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
-            --set-env-vars NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+            --set-env-vars NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }},BACKEND_API_URL=${{ steps.backend.outputs.url }}
