@@ -51,7 +51,7 @@ def reverse_geocode(req: ReverseGeocodeRequest):
 def generate_guide(municipality_code: str, req: GuideRequest):
     jst = timezone(timedelta(hours=9))
     return {
-        "municipality_code": municipality_code,
+        "municipality_code": municipality_code,"municipality_code": municipality_code,
         "guide": {
             "title": "千代田区の観光ガイド",
             "overview": "地理の概要",
@@ -65,4 +65,16 @@ def generate_guide(municipality_code: str, req: GuideRequest):
             {"title": "自治体公式サイト", "url": "https://example.jp"},
         ],
         "generated_at": datetime.now(jst).isoformat(),
+    }
+
+@app.post("/municipalities/{municipality_code}/map")
+def get_map(municipality_code: str):
+    return {
+        "municipality_code": municipality_code,
+        "paths": [
+            {"lat": 35.6938, "lng": 139.7536},
+            {"lat": 35.6950, "lng": 139.7600},
+            {"lat": 35.6850, "lng": 139.7650},
+        ],
+        "provider": "google_maps",
     }
