@@ -1,10 +1,18 @@
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
+from datetime import datetime, timezone, timedelta
 
 app = FastAPI()
 class ReverseGeocodeRequest(BaseModel):
     latitude: float
     longitude: float
+
+class GuideRequest(BaseModel):
+    language: str = "ja"
+    sections: list[str] = [
+        "overview", "geography", "history",
+        "culture", "tourism", "heritage",
+    ]
 
 @app.get("/")
 def read_root():
@@ -37,4 +45,24 @@ def reverse_geocode(req: ReverseGeocodeRequest):
         "municipality_code": "131016",
         "prefecture_name": "東京都",
         "municipality_name": "千代田区",
+    }
+
+@app.post("/municipalities/{municipality_code}/guide")
+def generate_guide(municipality_code: str, req: GuideRequest):
+    jst = timezone(timedelta(hours=9))
+    return {
+        "municipality_code": municipality_code,
+        "guide": {
+            "title": "千代田区の観光ガイド",
+            "overview": "地理の概要",
+            "geography": "地理的特徴",
+            "history": "歴史的背景",
+            "culture": "文化的特徴",
+            "tourism": "観光の見どころ",
+            "heritage": "文化遺産の紹介",
+        },
+        "sources": [
+            {"title": "自治体公式サイト", "url": "https://example.jp"},
+        ],
+        "generated_at": datetime.now(jst).isoformat(),
     }
