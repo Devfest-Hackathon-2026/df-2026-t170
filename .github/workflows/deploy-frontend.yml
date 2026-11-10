@@ -49,17 +49,26 @@ jobs:
             echo "url=${{ secrets.BACKEND_API_URL_DEV }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Deploy to Cloud Run from Source
+      - name: Set image name
+        id: image
+        run: |
+          PROJECT_ID=$(gcloud config get-value project)
+          echo "name=asia-northeast1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${{ steps.vars.outputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Build image via Cloud Build with build-arg
+        run: |
+          gcloud builds submit ./frontend \
+            --config=./frontend/cloudbuild.yaml \
+            --substitutions="_NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }},_IMAGE=${{ steps.image.outputs.name }}"
+
+      - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ steps.vars.outputs.service_name }}
-          source: ./frontend
+          image: ${{ steps.image.outputs.name }}
           region: ${{ env.REGION }}
-          build_env_vars: |
-            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
           env_vars: |
             BACKEND_API_URL=${{ steps.backend.outputs.url }}
-
           flags: >-
             --allow-unauthenticated
             --port 8080
