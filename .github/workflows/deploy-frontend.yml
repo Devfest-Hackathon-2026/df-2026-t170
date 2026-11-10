@@ -1,4 +1,4 @@
-name: Deploy frontend to Firebase hosting
+name: Deploy frontend to Cloud Run
 
 on:
   push:
