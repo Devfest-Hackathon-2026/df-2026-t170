@@ -13,6 +13,7 @@
 
 import { readFileSync } from "fs";
 import { createSign } from "crypto";
+import { connection } from "next/server";
 
 const METADATA_TOKEN_URL =
   "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity";
@@ -27,6 +28,9 @@ async function fetchIdentityTokenFromServiceAccount(
   audience: string,
   keyPath: string,
 ): Promise<string> {
+  // Date.now() はプリレンダリング時に使用不可のため、リクエスト時レンダリングを強制する
+  await connection();
+
   const key = JSON.parse(readFileSync(keyPath, "utf-8")) as {
     client_email: string;
     private_key: string;
