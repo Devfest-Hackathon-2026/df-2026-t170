@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -9,6 +9,17 @@ class ReverseGeocodeRequest(BaseModel):
 @app.get("/")
 def read_root():
     return {"status": "ok", "message": "Hello from FastAPI"}
+
+@app.get("/municipalities/random")
+def get_random_municipality(
+    prefecture_code: str = "0",
+    exclude_codes: list[str] = Query(default=[]),
+):
+    return {
+        "municipality_code": "131024",
+        "prefecture_name": "東京都",
+        "municipality_name": "中央区",
+    }
 
 @app.get("/municipalities/{municipality_code}")
 def get_municipality(municipality_code: str):
