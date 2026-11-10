@@ -172,7 +172,7 @@ def generate_guide(municipality_code: str, req: GuideRequest):
         "generated_at": datetime.now(jst).isoformat(),
     }
 
-@app.post("/municipalities/{municipality_code}/map")
+@app.get("/municipalities/{municipality_code}/map")
 def get_map(municipality_code: str):
     return {
         "municipality_code": municipality_code,
