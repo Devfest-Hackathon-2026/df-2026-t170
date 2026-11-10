@@ -1,8 +1,30 @@
-from fastapi import FastAPI, Query
+import csv
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 
 app = FastAPI()
+DATA_PATH = Path(__file__).parent / "data" / "municipalities.csv"
+
+def load_municipalities():
+    municipalities = []
+    with open(DATA_PATH, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row["municipality"] == "":
+                continue
+            municipalities.append({
+                "municipality_code": row["code"],
+                "prefecture_name": row["prefecture"],
+                "municipality_name": row["municipality"],
+            })
+    return municipalities
+
+
+MUNICIPALITIES = load_municipalities()
+MUNICIPALITY_BY_CODE = {m["municipality_code"]: m for m in MUNICIPALITIES}
+
 class ReverseGeocodeRequest(BaseModel):
     latitude: float
     longitude: float
@@ -31,12 +53,13 @@ def get_random_municipality(
 
 @app.get("/municipalities/{municipality_code}")
 def get_municipality(municipality_code: str):
+    municipality = MUNICIPALITY_BY_CODE.get(municipality_code)
+    if municipality is None:
+        raise HTTPException(status_code=404, detail="指定された市町村が見つかりません。")
     return {
-        "municipality_code": municipality_code,
-        "prefecture_name": "東京都",
-        "municipality_name": "千代田区",
-        "official_website": "https://example.jp",
-        "official_tourism_website": "https://example.jp/tourism"
+        **municipality,
+        "official_website": None,
+        "official_tourism_website": None,
     }
 
 @app.post("/locations/reverse-geocode")
