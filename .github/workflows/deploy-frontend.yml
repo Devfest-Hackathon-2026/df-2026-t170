@@ -46,4 +46,10 @@ jobs:
           service: ${{ steps.vars.outputs.service_name }}
           source: ./frontend
           region: ${{ env.REGION }}
-          flags: '--allow-unauthenticated --port 8080'
+          # --set-build-env-vars でビルド時に NEXT_PUBLIC_ 変数を埋め込む
+          # --set-env-vars はランタイム環境変数（NEXT_PUBLIC_ はビルド時埋め込みだが念のため設定）
+          flags: >-
+            --allow-unauthenticated
+            --port 8080
+            --set-build-env-vars NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+            --set-env-vars NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
