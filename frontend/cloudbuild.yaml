@@ -1,14 +1,11 @@
 steps:
-  # .env.production を生成してビルド時に NEXT_PUBLIC_ 変数を確実に埋め込む
-  - name: 'alpine'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - 'echo "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${_NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}" > .env.production'
-
+  # NEXT_PUBLIC_ 変数はビルド時に埋め込まれるため build-arg で Dockerfile に渡す
+  # （Dockerfile の ENV が空文字を設定するため、.env.production では上書きされない）
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${_NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}'
       - '-t'
       - '${_IMAGE}'
       - '.'
