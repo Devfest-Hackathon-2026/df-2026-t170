@@ -1,4 +1,5 @@
 import os
+import json
 import csv
 import random
 from pathlib import Path
@@ -35,6 +36,9 @@ WARDS = load_municipalities(DATA_DIR / "wards.csv")
 MUNICIPALITY_BY_CODE = {m["municipality_code"]: m for m in MUNICIPALITIES + WARDS}
 # 5桁コード（検査数字なし）で引く辞書
 MUNICIPALITY_BY_CODE5 = {code[:5]: m for code, m in MUNICIPALITY_BY_CODE.items()}
+
+with open(DATA_DIR / "boundaries.json", encoding="utf-8") as f:
+    BOUNDARIES = json.load(f)
 
 GSI_REVERSE_GEOCODER_URL = "https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress"
 
@@ -174,12 +178,12 @@ def generate_guide(municipality_code: str, req: GuideRequest):
 
 @app.get("/municipalities/{municipality_code}/map")
 def get_map(municipality_code: str):
+    boundary = BOUNDARIES.get(municipality_code[:5])
+    if boundary is None:
+        raise HTTPException(status_code=404, detail="指定された市区町村の境界データが見つかりません。")
+
     return {
         "municipality_code": municipality_code,
-        "paths": [
-            {"lat": 35.6938, "lng": 139.7536},
-            {"lat": 35.6950, "lng": 139.7600},
-            {"lat": 35.6850, "lng": 139.7650},
-        ],
+        "paths": [{"lat": lat, "lng": lng} for lng, lat in boundary],
         "provider": "google_maps",
     }
