@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { getRandomMunicipality } from "@/app/lib/api";
+import type { Municipality } from "@/app/lib/types";
 
 export default function StartButton() {
   const router = useRouter();
@@ -13,7 +13,11 @@ export default function StartButton() {
     setLoading(true);
     setError(null);
     try {
-      const municipality = await getRandomMunicipality();
+      const res = await fetch("/api/municipalities/random");
+      if (!res.ok) {
+        throw new Error(`${res.status} ${res.statusText}`);
+      }
+      const municipality: Municipality = await res.json();
       router.push(`/spot/${municipality.municipality_code}`);
     } catch {
       setError("地点の取得に失敗しました。もう一度お試しください。");
