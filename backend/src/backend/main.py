@@ -1,15 +1,18 @@
 import csv
+import random
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 
-app = FastAPI()
-DATA_PATH = Path(__file__).parent / "data" / "municipalities.csv"
+import httpx
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel
 
-def load_municipalities():
+app = FastAPI()
+DATA_DIR = Path(__file__).parent / "data" 
+
+def load_municipalities(path):
     municipalities = []
-    with open(DATA_PATH, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["municipality"] == "":
@@ -22,8 +25,15 @@ def load_municipalities():
     return municipalities
 
 
-MUNICIPALITIES = load_municipalities()
-MUNICIPALITY_BY_CODE = {m["municipality_code"]: m for m in MUNICIPALITIES}
+MUNICIPALITIES = load_municipalities(DATA_DIR / "municipalities.csv")
+WARDS = load_municipalities(DATA_DIR / "wards.csv")
+
+# 6桁コードで引く辞書（区も含める）
+MUNICIPALITY_BY_CODE = {m["municipality_code"]: m for m in MUNICIPALITIES + WARDS}
+# 5桁コード（検査数字なし）で引く辞書
+MUNICIPALITY_BY_CODE5 = {code[:5]: m for code, m in MUNICIPALITY_BY_CODE.items()}
+
+GSI_REVERSE_GEOCODER_URL = "https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress"
 
 class ReverseGeocodeRequest(BaseModel):
     latitude: float
@@ -45,11 +55,17 @@ def get_random_municipality(
     prefecture_code: str = "0",
     exclude_codes: list[str] = Query(default=[]),
 ):
-    return {
-        "municipality_code": "131024",
-        "prefecture_name": "東京都",
-        "municipality_name": "中央区",
-    }
+    candidates = []
+    for m in MUNICIPALITIES:
+        # 都道府県の指定があれば、コードの先頭2桁で絞りこむ
+        if prefecture_code != "0" and not m["municipality_code"].startswith(prefecture_code.zfill(2)):
+            continue
+        candidates.append(m)
+
+    if not candidates:
+        raise HTTPException(status_code=404, detail="条件に合う市区町村が見つかりません。")
+
+    return random.choice(candidates)
 
 @app.get("/municipalities/{municipality_code}")
 def get_municipality(municipality_code: str):
@@ -64,11 +80,27 @@ def get_municipality(municipality_code: str):
 
 @app.post("/locations/reverse-geocode")
 def reverse_geocode(req: ReverseGeocodeRequest):
-    return {
-        "municipality_code": "131016",
-        "prefecture_name": "東京都",
-        "municipality_name": "千代田区",
-    }
+    try:
+        res = httpx.get(
+            GSI_REVERSE_GEOCODER_URL,
+            params={"lat": req.latitude, "lon": req.longitude},
+            timeout=5,
+        )
+        res.raise_for_status()
+        data = res.json()
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="外部APIエラー")
+
+    results = data.get("results")
+    if not results:
+        raise HTTPException(status_code=404, detail="この地点の市区町村が見つかりません。")
+
+    muni_cd = results["muniCd"].zfill(5)
+    muncipality = MUNICIPALITY_BY_CODE5.get(muni_cd)
+    if muncipality is None:
+        raise HTTPException(status_code=404, detail="この地点の市区町村が見つかりません。")
+
+    return muncipality
 
 @app.post("/municipalities/{municipality_code}/guide")
 def generate_guide(municipality_code: str, req: GuideRequest):
