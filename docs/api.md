@@ -9,7 +9,7 @@
 
 緯度経度から該当する市区町村を特定する。
 
-`POST` `/locations/reverse-geocode`
+`POST` `/municipalities/from-geocode`
 Request
 ```json
 
