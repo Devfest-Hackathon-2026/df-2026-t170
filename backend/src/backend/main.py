@@ -1,3 +1,4 @@
+import os
 import csv
 import random
 from pathlib import Path
@@ -5,6 +6,8 @@ from datetime import datetime, timezone, timedelta
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
+from google import genai
+from google.genai import types 
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -45,6 +48,18 @@ class GuideRequest(BaseModel):
         "overview", "geography", "history",
         "culture", "tourism", "heritage",
     ]
+
+class Guide(BaseModel):
+    title: str
+    overview: str
+    geography: str
+    history: str
+    culture: str
+    tourism: str
+    heritage: str
+
+
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 @app.get("/")
 def read_root():
@@ -104,21 +119,56 @@ def reverse_geocode(req: ReverseGeocodeRequest):
 
 @app.post("/municipalities/{municipality_code}/guide")
 def generate_guide(municipality_code: str, req: GuideRequest):
+    municipality = MUNICIPALITY_BY_CODE.get(municipality_code)
+    if municipality is None:
+        raise HTTPException(status_code=404, detail="指定された市区町村が見つかりません。")
+
+    name = municipality["prefecture_name"] + municipality["municipality_name"]
+    prompt = f"""あなたは、地形や歴史から街の成り立ちを読み解くのが得意な観光ガイドです。
+{name}の観光ガイドを、言語コード「{req.language}」の言語で書いてください。
+
+各項目の内容:
+- title: ガイドのタイトル
+- overview: 地域の概要
+- geography: 地形・地理の特徴
+- history: 歴史や地名の由来
+- culture: 文化・食・祭りなど
+- tourism: 観光の見どころ
+- heritage: 文化遺産の紹介
+
+各項目は200字程度にしてください。確かでない情報は書かないでください。"""
+
+    try:
+        client = genai.Client(
+            vertexai=True,
+            project=os.getenv("GOOGLE_CLOUD_PROJECT"),
+            location=os.getenv("GOOGLE_CLOUD_LOCATION", "global"),
+        )
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=Guide,
+            ),
+        )
+        guide = response.parsed
+    except Exception as e:
+        print("Gemini error:", e)
+        raise HTTPException(status_code=502, detail="AIガイドの生成に失敗しました。")
+
+    # リクエストで指定されたセクションだけ返す（タイトルは常に返す）
+    guide_dict = {
+        key: value
+        for key, value in guide.model_dump().items()
+        if key == "title" or key in req.sections
+    }
+
     jst = timezone(timedelta(hours=9))
     return {
-        "municipality_code": municipality_code,"municipality_code": municipality_code,
-        "guide": {
-            "title": "千代田区の観光ガイド",
-            "overview": "地理の概要",
-            "geography": "地理的特徴",
-            "history": "歴史的背景",
-            "culture": "文化的特徴",
-            "tourism": "観光の見どころ",
-            "heritage": "文化遺産の紹介",
-        },
-        "sources": [
-            {"title": "自治体公式サイト", "url": "https://example.jp"},
-        ],
+        "municipality_code": municipality_code,
+        "guide": guide_dict,
+        "sources": [],
         "generated_at": datetime.now(jst).isoformat(),
     }
 
